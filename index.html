@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Avito via Supabase</title>
+    <style>
+      body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; background:#0b0c10; color:#e5e7eb; }
+      .wrap { padding:16px; display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+      .panel { background:#111217; border:1px solid #1f2937; border-radius:10px; padding:16px; min-height:60vh;}
+      input, textarea, button { background:#0b0c10; color:#e5e7eb; border:1px solid #374151; border-radius:8px; padding:10px 12px; width:100%; }
+      button { width:auto; cursor:pointer; }
+      pre { white-space: pre-wrap; font-size:12px; color:#9ca3af; }
+      .row { display:flex; gap:8px; align-items:center; }
+      .muted { color:#9ca3af; font-size:12px; }
+      .kbd { border:1px solid #374151; padding:2px 6px; border-radius:6px; font-size:12px; color:#9ca3af; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="panel">
+        <div class="row" style="margin-bottom:8px">
+          <input id="supabaseUrl" placeholder="Functions URL (e.g. https://<ref>.functions.supabase.co)" />
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <input id="userQuery" value="покажи 10 диалогов, на которые я не ответил" />
+          <button id="planBtn">Сформировать план</button>
+        </div>
+        <div class="muted">План</div>
+        <pre id="plan">—</pre>
+        <div class="muted">Трасса</div>
+        <pre id="trace">—</pre>
+      </div>
+      <div class="panel">
+        <div class="row" style="margin-bottom:8px">
+          <input id="path" value="messenger/v1/dialogs" />
+          <button id="execBtn">Выполнить план</button>
+        </div>
+        <div class="muted">Результат</div>
+        <pre id="result">—</pre>
+        <div class="muted" style="margin-top:8px">
+          Перед началом задайте секреты: <span class="kbd">AVITO_CLIENT_ID</span>, <span class="kbd">AVITO_CLIENT_SECRET</span>, <span class="kbd">OPENROUTER_API_KEY</span> в Supabase → Project Settings → Functions → Secrets.
+        </div>
+      </div>
+    </div>
+    <script type="module">
+      const $ = (id)=>document.getElementById(id)
+      const trace = []
+
+      $('planBtn').onclick = async () => {
+        const base = $('supabaseUrl').value.trim()
+        const userQuery = $('userQuery').value.trim()
+        if (!base) return alert('Укажите Functions URL')
+        trace.length = 0
+        $('trace').textContent = '—'
+        try {
+          const r = await fetch(base + '/llm', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ userQuery })
+          })
+          const txt = await r.text()
+          if (!r.ok) throw new Error(txt)
+          $('plan').textContent = txt
+        } catch (e) {
+          $('plan').textContent = 'ERR: ' + e.message
+        }
+      }
+
+      $('execBtn').onclick = async () => {
+        const base = $('supabaseUrl').value.trim()
+        const path = $('path').value.trim()
+        if (!base) return alert('Укажите Functions URL')
+        try {
+          const r = await fetch(base + '/avito', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify({ path, method: 'GET', query: { limit: 50 } })
+          })
+          const txt = await r.text()
+          $('result').textContent = txt
+          trace.push('GET ' + path + ' → ' + r.status)
+          $('trace').textContent = trace.join('\n')
+        } catch (e) {
+          $('result').textContent = 'ERR: ' + e.message
+        }
+      }
+    </script>
+  </body>
+</html>
